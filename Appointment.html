@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appointment Scheduler</title>
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+
+  <!-- FullCalendar CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/fullcalendar.min.css" />
+
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #007bff; /* Bootstrap primary color */
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 20 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    form {
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+      color: #007bff;
+    }
+
+    #appointmentDetails {
+      margin-bottom: 20px;
+    }
+
+    #calendar {
+      margin-bottom: 20px;
+    }
+
+    #removeSelectedAppointmentBtn {
+      margin-top: 10px;
+    }
+
+    .btn-primary {
+      background-color: #007bff;
+      border-color: #007bff;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056b3;
+      border-color: #0056b3;
+    }
+
+    .btn-danger {
+      background-color: #dc3545;
+      border-color: #dc3545;
+    }
+
+    .btn-danger:hover {
+      background-color: #c82333;
+      border-color: #c82333;
+    }
+  </style>
+
+  <script src="https://unpkg.com/mongoose"></script>
+</head>
+
+<body>
+
+  <div class="container">
+    <h1>Appointment Scheduler</h1>
+
+    <form id="appointmentForm">
+      <div class="form-group">
+        <label for="appointmentTitle">Appointment Title:</label>
+        <input type="text" class="form-control" id="appointmentTitle" required>
+      </div>
+      <div class="form-group">
+        <label for="appointmentDate">Select Date:</label>
+        <input type="date" class="form-control" id="appointmentDate" required>
+      </div>
+      <div class="form-group">
+        <label for="appointmentTime">Select Time:</label>
+        <select class="form-control" id="appointmentTime" required>
+          <option value="09:00">09:00 AM</option>
+          <option value="10:00">10:00 AM</option>
+          <option value="11:00">11:00 AM</option>
+          <option value="12:00">12:00 PM</option>
+          <option value="13:00">13:00 PM</option>
+          <option value="14:00">14:00 PM</option>
+          <option value="15:00">15:00 PM</option>
+          <option value="16:00">16:00 PM</option>
+          <option value="17:00">17:00 PM</option>
+          
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#personalDetailsModal"
+        onclick="checkAndSchedule()">Schedule Appointment</button>
+    </form>
+
+    <div id="appointmentDetails">
+      <h2>Appointment Details:</h2>
+      <p id="appointmentTitleDisplay"></p>
+      <p id="appointmentDateTimeDisplay"></p>
+    </div>
+
+    <div id="calendar"></div>
+
+    <button id="removeSelectedAppointmentBtn" class="btn btn-danger" onclick="removeSelectedAppointment()">Remove Selected Appointment</button>
+
+  </div>
+
+  <!-- Modal for personal details -->
+  <div class="modal fade" id="personalDetailsModal" tabindex="-1" role="dialog"
+    aria-labelledby="personalDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="personalDetailsModalLabel">Enter Personal Details</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="personalDetailsForm">
+            <div class="form-group">
+              <label for="fullName">Full Name:</label>
+              <input type="text" class="form-control" id="fullName" required>
+            </div>
+            <div class="form-group">
+              <label for="email">Email:</label>
+              <input type="email" class="form-control" id="email" required>
+            </div>
+            <div class="form-group">
+              <label for="phoneNumber">Phone Number:</label>
+              <input type="tel" class="form-control" id="phoneNumber" required>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="scheduleAppointment()">Submit</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+  <!-- Popper.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+
+  <!-- Bootstrap JS -->
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+
+  <!-- FullCalendar JavaScript -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/fullcalendar.min.js"></script>
+
+  <script>
+    let currentEventId = 1;
+    let selectedEventId = null;
+    let reservedSlots = [];
+
+    function openPersonalDetailsModal() {
+      // Open the personal details modal
+      $('#personalDetailsModal').modal('show');
+    }
+
+    function checkAndSchedule() {
+      const date = document.getElementById('appointmentDate').value;
+      const time = document.getElementById('appointmentTime').value;
+      const dateTime = date + ' ' + time;
+
+      if (isSlotAvailable(dateTime)) {
+        // Proceed to schedule appointment
+        openPersonalDetailsModal();
+      } else {
+        alert('This date and time slot is already reserved. Please choose another.');
+      }
+    }
+
+    function isSlotAvailable(dateTime) {
+      return reservedSlots.indexOf(dateTime) === -1;
+    }
+
+    function scheduleAppointment() {
+      const title = document.getElementById('appointmentTitle').value;
+      const date = document.getElementById('appointmentDate').value;
+      const time = document.getElementById('appointmentTime').value;
+      const dateTime = date + ' ' + time;
+      const fullName = document.getElementById('fullName').value;
+      const email = document.getElementById('email').value;
+      const phoneNumber = document.getElementById('phoneNumber').value;
+
+      if (title && date && time && fullName && email && phoneNumber) {
+        if (isSlotAvailable(dateTime)) {
+          document.getElementById('appointmentTitleDisplay').innerText = 'Title: ' + title;
+          document.getElementById('appointmentDateTimeDisplay').innerText = 'Date and Time: ' + dateTime;
+
+          const eventId = 'event-' + currentEventId++;
+          const appointmentData = {
+            id: eventId,
+            title: title,
+            start: moment(dateTime).format(),
+            allDay: false,
+            fullName: fullName,
+            email: email,
+            phoneNumber: phoneNumber
+          };
+
+          // Display the appointment on the calendar
+          const calendar = $('#calendar');
+          calendar.fullCalendar('renderEvent', appointmentData, true);
+
+          // Update reserved slots
+          reservedSlots.push(dateTime);
+
+          // Close the personal details modal
+          $('#personalDetailsModal').modal('hide');
+
+          // Clear the form fields
+          document.getElementById('appointmentTitle').value = '';
+          document.getElementById('appointmentDate').value = '';
+          document.getElementById('appointmentTime').value = '';
+          document.getElementById('fullName').value = '';
+          document.getElementById('email').value = '';
+          document.getElementById('phoneNumber').value = '';
+        } else {
+          alert('This date and time slot is already reserved. Please choose another.');
+        }
+      } else {
+        alert('Please fill in all fields.');
+      }
+    }
+
+    // Your existing functions (removeSelectedAppointment)
+
+    // Initialize FullCalendar
+    $(document).ready(function () {
+      const calendar = $('#calendar');
+      calendar.fullCalendar({
+        header: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'month,agendaWeek,agendaDay'
+        },
+        editable: true,
+        eventLimit: true,
+        events: [],
+        eventClick: function (event) {
+          // Set the selected event ID
+          selectedEventId = event.id;
+        }
+      });
+    });
+  </script>
+
+</body>
+
+</html>
+
